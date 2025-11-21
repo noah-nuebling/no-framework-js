@@ -8,26 +8,25 @@ export const listen = function (obj, eventname, callback) { obj.addEventListener
 
  /* outlet() is meant for components since you can't define ids/classes on the <mf-component> root node directly. 
     Usage: 
-        - Give the component an identifier `outlet('my-component-id', componentHTML)`
+        - Give the component an identifier `MyComponent().outlet('my-component-id')`
         - Later, get a reference to the <mf-component> root node using qs('.my-component-id > *') 
         [Nov 2025] 
     TODO: 
         -> Maybe move this into the `Idea - quote-unquote-framework` doc.
 */
-export const outlet = (id, innerHTML) => {
-    return `<div data-is-outlet class="${id}" style="display: contents">${innerHTML}</div>`
+String.prototype.outlet = function (id) {
+    return `<div data-is-outlet class="${id}" style="display: contents">${this}</div>`
 }
 
-export const getOutlet = (...args) => {
-    if (args.length === 1)  return qs(`.${args[0]} > *`);
-    else                    return qs(args[0], `.${args[0]} > *`)
+export const getOutlet = (root, id) => {
+    return qs(root, `.${id} > *`)
 }
 
 const instanceCallbacks = new Map();
 let instanceCounter = 0;
 let xComponentIsInitialized = false;
 
-export function wrapInCustomElement(debugName, innerHtml, { mounted }) {
+export function wrapInCustomElement(innerHtml, { mounted }) {
     const id = `${instanceCounter++}`;
     instanceCallbacks.set(id, mounted);
 
@@ -45,7 +44,7 @@ export function wrapInCustomElement(debugName, innerHtml, { mounted }) {
         xComponentIsInitialized = true;
     }
 
-    return `<mf-component data-name="${debugName}" data-id="${id}">${innerHtml}</mf-component>`; // The data-name is just to make the HTML more readable. Not sure this is good / elegant.
+    return `<mf-component data-id="${id}">${innerHtml}</mf-component>`;
 }
 
 export const observe = function (obj, prop, callback, triggerImmediately = true) {

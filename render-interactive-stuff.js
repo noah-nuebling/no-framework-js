@@ -1,5 +1,5 @@
 
-import {observe, listen, outlet, qs, wrapInCustomElement, getOutlet} from "./mini-framework.js";
+import {observe, listen, qs, wrapInCustomElement, getOutlet} from "./mini-framework.js";
 
 // Interactive Components
 
@@ -34,7 +34,7 @@ function Counter({ initialCount = 0, color = '#4a90e2' }) {
     </div>
   `;
 
-  html = wrapInCustomElement("Counter", html, {
+  html = wrapInCustomElement(html, {
       mounted() {
           /** @typedef {{count: number}} Counter */
           this.count = initialCount;
@@ -72,7 +72,7 @@ function AnimatedCard({ title, description, color = '#e74c3c' }) {
     </div>
   `;
 
-    html = wrapInCustomElement("AnimatedCard", html, {
+    html = wrapInCustomElement(html, {
         mounted() {
 
             let card = qs(this, ".card");
@@ -133,7 +133,7 @@ function ToggleSwitch({ label = 'Toggle', initialState = false }) {
         <label>${label}</label>
     </div>
   `;
-    html = wrapInCustomElement("ToggleSwitch", html, {
+    html = wrapInCustomElement(html, {
         mounted() {
 
             const switchEl = qs(this, '.switch');
@@ -156,7 +156,7 @@ export function renderInteractiveStuff() {
     let html = `
         <h1 style="text-align: center; color: #333;">Interactive Components Demo</h1>
         <div style="display: grid; gap: 20px; margin: 30px 30px 400px 30px;">
-        ${outlet('first-counter', Counter({ initialCount: 0, color: '#4a90e2' }))}
+        ${Counter({ initialCount: 0, color: '#4a90e2' }).outlet('first-counter')}
         ${Counter({ initialCount: 100, color: '#9b59b6' })}
         ${AnimatedCard({
             title: 'Hover me!',
@@ -172,9 +172,9 @@ export function renderInteractiveStuff() {
         ${ToggleSwitch({ label: 'Notifications', initialState: true })}
         </div>
     `;
-    html = wrapInCustomElement("InteractiveStuff", html, {
+    html = wrapInCustomElement(html, {
         mounted() {
-            let counter = /**@type{Counter}*/getOutlet('first-counter');
+            let counter = /**@type{Counter}*/getOutlet(this, 'first-counter');
             observe(counter, 'count', count => {
                 console.log(`Count changed to: ${count}`);
             })
