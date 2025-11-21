@@ -6,20 +6,20 @@ export const qs = (...args) => {
 };
 export const listen = function (obj, eventname, callback) { obj.addEventListener(eventname, callback) }
 
- /* outlet() is meant for components since you can't define ids/classes on the <mf-component> root node directly. 
+ /* outlet() is meant for components since you can't define ids/classes on the <mf-component> root node directly from the outside.
     Usage: 
-        - Give the component an identifier `MyComponent().outlet('my-component-id')`
-        - Later, get a reference to the <mf-component> root node using qs('.my-component-id > *') 
+        - Give the component an identifier `<htmlstuff>${MyComponent().outlet('my-component-id')}</htmlstuff>`
+        - Later, get a reference to the <mf-component> root node of MyComponent() using getOutlet('my-component-id')
         [Nov 2025] 
     TODO: 
         -> Maybe move this into the `Idea - quote-unquote-framework` doc.
 */
 String.prototype.outlet = function (id) {
-    return `<div data-is-outlet class="${id}" style="display: contents">${this}</div>`
+    return `<div class="outlet ${id}" style="display: contents">${this}</div>`
 }
 
 export const getOutlet = (root, id) => {
-    return qs(root, `.${id} > *`)
+    return qs(root, `.outlet.${id} > *`)
 }
 
 const instanceCallbacks = new Map();
@@ -49,22 +49,20 @@ export function wrapInCustomElement(innerHtml, { mounted }) {
 
 export const observe = function (obj, prop, callback, triggerImmediately = true) {
 
-    const callbacksKey = `__mf-observers_${prop}__`;
+    if (!obj[`__mf-observers_${prop}__`]) { // First time observing this property
+        obj[`__mf-observers_${prop}__`] = [];
 
-    if (!obj[callbacksKey]) { // First time observing this property
         let value = obj[prop];
-        obj[callbacksKey] = [];
-
         Object.defineProperty(obj, prop, {
             get: () => value,
             set: (newVal) => {
                 value = newVal;
-                obj[callbacksKey].forEach(cb => cb(newVal));
+                obj[`__mf-observers_${prop}__`].forEach(cb => cb(newVal));
             },
         });
     }
 
-    obj[callbacksKey].push(callback);
+    obj[`__mf-observers_${prop}__`].push(callback);
 
     if (triggerImmediately) callback(obj[prop]);
 }
