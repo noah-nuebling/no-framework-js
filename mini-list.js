@@ -4,8 +4,19 @@ import { observe, wrapInCustomElement, listen, debounce, qs } from "./mini-frame
 /**
     Performance test result for FastList(): [Nov 2025]
         - Runs buttery smooth even with 1'000'000 complex items on my M1 MBA in Google Chrome.
-        - The only complex optimization is 'not' rendering items that are off-screen. (Actually, we are rendering items within 1000px of the viewport-edges)
-        - We're not doing element-reuse like NSTableView. We're re-rendering the on-screen elements from HTML on every scroll-event – doesn't seem to be a bottleneck even with complex items.
+        - There are two optimizations:
+            1. For large number of items (50+)
+                -> 'not' rendering items that are off-screen. (Actually, we are rendering items within 1000px of the viewport-edges)
+            2. For costly-to-paint items (background blurs, shadows, etc)
+                -> Keeping visible items in the DOM between frames
+                -> This is only noticable for extreme cases on my M1 MBA in Chrome. And I could only get it to be noticable when rows had expensive CSS effects, not just from their HTML being complex.
+                    The effect I observed is that rows load in a bit faster, instead of loading their content in a split second after appearing on-screen when scrolling fast.
+                        There were no frame-drops either way.
+                    Just re-rendering all visible items from scratch is more than fast enough for almost all cases.
+                        But with this optimization it's fast enough *no matter what you throw at it*.
+                            You can have 1'000'000 super expensive-to-draw items, and it's rock solid 60 fps on my M1 MBA.
+                    -> I think the HTML rendering is not the bottleneck but that this optimization helps the browser cache the painting better or something. (But not sure.)
+        - We're not doing full element-recycling like NSTableView, I don't think that's a bottleneck here.
 */
 
 export const FastList = ({
@@ -28,17 +39,48 @@ export const FastList = ({
             let itemContainer = this;
 
             let itemHeightCache = {} // Small problem: Scroll pos is not preserved after a page reload because we loose the itemHeightCache. [Nov 2025]
+            let visibleElementTracker = {}; // 'visible' items aren't necessarily visible if the preloadSize > 0. It just means they're rendered HTML strings are attached to the DOM.
 
-            let renderItems = () => {
+            let renderItems;
 
-                //if (itemContainer.innerHTML !== "") return;
-                itemContainer.innerHTML = "";
+            requestAnimationFrame(() => { // this is just so we can define this stuff before the long renderItems function.
+
+                let _reloadItems = () => {
+                    itemContainer.innerHTML = '';
+                    itemHeightCache = {};
+                    visibleElementTracker = {};
+                    renderItems();
+                }
+
+                observe(this, 'items', () => {
+                    _reloadItems();
+                })
+
+                let listWidth = -1;
+                let resizeObserver = new ResizeObserver((entries) => {
+
+                    let newListWidth = listContent.offsetWidth;
+                    console.debug(`listWidth/newListWidth: ${[listWidth, newListWidth]}`)
+                    if (listWidth !== -1 && listWidth !== newListWidth) {
+                        _reloadItems(); // Maybe we could only reset `itemHeightCache` for optimization [Nov 2025]
+                    }
+                    listWidth = newListWidth;
+
+                })
+                resizeObserver.observe(listContent);
+
+                listContainer.addEventListener('scroll', () => {
+                    renderItems();
+                }, { passive: true });
+            });
+
+            renderItems = () => {
 
                 let accumulatedHeight = 0;
                 let i = 0
 
                 // Find first visible item
-                if (1) {
+                {
                     // Take property-accesses out of the hot loop
                     //  Very noticeable optimization at 1'000'000 items on Chrome [Nov 2025]
                     let _listContainer_scrollTop = listContainer.scrollTop;
@@ -50,60 +92,93 @@ export const FastList = ({
                         if (accumulatedHeight + itemHeight >= (_listContainer_scrollTop - preloadSize)) { break; }
                         accumulatedHeight += itemHeight;
                     }
+
+                    /// DEBUG
+                    if ((0)) {
+                        console.log(dedent(`visibleElementCache: (removal) (firstVisible: ${i})
+                        ${Object.keys(visibleElementTracker).join(' ')}
+                         
+                    `))
+                    }
                 }
 
                 // Render visible items.
                 let firstVisibleI = i;
                 for (; i < this.items.length; i++) {
 
-                    function htmlElementFromString(s) {
-                        let wrapper = document.createElement('div');
-                        wrapper.innerHTML = s;
-                        let renderedItemRoots = wrapper.children;
-                        console.assert(renderedItemRoots.length === 1);
-                        return renderedItemRoots[0];
+                    let renderedItemAlreadyVisible = visibleElementTracker[i] !== undefined;
+
+                    let renderedItem;
+                    if (renderedItemAlreadyVisible) {
+                        renderedItem = visibleElementTracker[i];
+                    }
+                    else {
+                        // Render the item fresh from the HTML string returned by render()
+                        {
+                            let wrapper = document.createElement('div');
+                            wrapper.innerHTML = render(this.items[i]);
+                            let renderedItemRoots = wrapper.children;
+                            console.assert(renderedItemRoots.length === 1);
+                            renderedItem = renderedItemRoots[0];
+                        }
+
+                        itemContainer.appendChild(renderedItem);
+                        visibleElementTracker[i] = renderedItem;
                     }
 
-                    let renderedItem = htmlElementFromString(render(this.items[i]));
-
-
+                    // Position the renderedItem vertically
                     renderedItem.style.position = 'absolute';
                     renderedItem.style.left = '0';
                     renderedItem.style.top = `${accumulatedHeight}px`;
 
-                    itemContainer.appendChild(renderedItem);
+                    /// Handle height of the renderedItem
+                    if (renderedItemAlreadyVisible) {
+                        accumulatedHeight += itemHeightCache[i];
+                    }
+                    else {
 
-                    accumulatedHeight += renderedItem.offsetHeight;
-                    let heightShift = renderedItem.offsetHeight - itemHeightCache[i]
-                    itemHeightCache[i] = renderedItem.offsetHeight;
-
-                    if (heightShift) {
-
-                        console.log(`shiftstuff: ${[heightShift, listContainer.scrollTop, renderedItem.offsetTop]}`)
-                        let itemWasScrolledInFromTop = listContainer.scrollTop > renderedItem.offsetTop;
-                        if (itemWasScrolledInFromTop) {
-                            listContainer.scrollTop += heightShift;
+                        /// Adjust scroll position to compensate for growing/shrinking item shifting the items below it down/up.
+                        let heightShift = renderedItem.offsetHeight - itemHeightCache[i];
+                        if (heightShift) {
+                            let itemWasScrolledInFromTop = listContainer.scrollTop > renderedItem.offsetTop;
+                            if (itemWasScrolledInFromTop)
+                                listContainer.scrollTop += heightShift;
                         }
-                    }
-                    //console.log(`shiftstuff end`)
-                    //console.log(`Rendered item: (${renderedItem.offsetTop} | ${renderedItem.offsetHeight})`)
 
-                    if (1) {
-                        if (accumulatedHeight > (listContainer.scrollTop + listContainer.offsetHeight + preloadSize))
-                            break;
+                        accumulatedHeight += renderedItem.offsetHeight;
+                        itemHeightCache[i] = renderedItem.offsetHeight;
+                    }
+
+                    /// Stop when we find the first not-visible item.
+                    if (
+                        accumulatedHeight >
+                        (listContainer.scrollTop + listContainer.offsetHeight + preloadSize)
+                    ) {
+                        i++;
+                        break;
                     }
                 }
-
-                if ((1)) {
-                    console.log(dedent(`x
-                    Rendered elements: ${firstVisibleI}..${i}
-                        Conditions: ${accumulatedHeight} > (${listContainer.scrollTop} + ${listContainer.offsetHeight})
-                `));
+                /// Remove no-longer-visible elements from the DOM.
+                for (let j of Object.keys(visibleElementTracker)) {
+                    let isVisible = firstVisibleI <= Number(j) && Number(j) < i;
+                    if (!isVisible) {
+                        itemContainer.removeChild(visibleElementTracker[j]);
+                        delete visibleElementTracker[j];
+                    }
+                }
+                /// DEBUG
+                if (1)
+                {
+                    console.log(dedent(`
+                        Rendered elements: ${firstVisibleI}..${i} (count: ${i-firstVisibleI})
+                            DOM children: ${itemContainer.children.length}
+                            visibleElementCache: ${Object.keys(visibleElementTracker).length}
+                            Conditions: ${accumulatedHeight} > (${listContainer.scrollTop} + ${listContainer.offsetHeight})
+                    `));
                 }
 
-                if (1) {
-                    // Estimate height of remaining items
-
+                // Estimate height of remaining items
+                {
                     let _this_items_length = this.items.length;
                     let _this_items = this.items;
                     for (; i < _this_items_length; i++) {
@@ -116,13 +191,6 @@ export const FastList = ({
                 listContent.style.height = `${accumulatedHeight}px`;
             }
 
-            observe(this, 'items', () => {
-                renderItems();
-            })
-
-            listen(listContainer, 'scroll', () => {
-                renderItems();
-            });
         }
     })
 
