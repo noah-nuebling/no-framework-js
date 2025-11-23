@@ -1,6 +1,13 @@
 import { dedent } from './utils.js'
 import { observe, wrapInCustomElement, listen, debounce, qs } from "./mini-framework.js"
 
+/**
+    Performance test result for FastList(): [Nov 2025]
+        - Runs buttery smooth even with 1'000'000 complex items on my M1 MBA in Google Chrome.
+        - The only complex optimization is 'not' rendering items that are off-screen. (Actually, we are rendering items within 1000px of the viewport-edges)
+        - We're not doing element-reuse like NSTableView. We're re-rendering the on-screen elements from HTML on every scroll-event – doesn't seem to be a bottleneck even with complex items.
+*/
+
 export const FastList = ({
     estimateHeight,                 // Returns the estimated height for a given item which has not been rendered, yet. To the website-visitor, the only effect is that this determines the size and position of the scroll-bar before the items are rendered (and the estimated height is replaced with the measured height).
     preloadSize = 1000,             // How much beyond the viewport bounds items are rendered. Can help UX by making sure images are already loaded once elements are scrolled onto the screen.
