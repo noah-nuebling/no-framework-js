@@ -40,7 +40,7 @@ export function wrapInCustomElement(innerHtml, { connected, dbgname }) {
     
     const instanceid = `${instanceCounter++}`;
     
-    connectedCallbacksProvidedByUser[instanceid] = connected;
+    connectedCallbacksProvidedByUser[instanceid] = connected; // TODO: Rename to init() or reconsider the __mfIsInitialized stuff.
 
     if (!window.customElements.get('mf-component')) {
 
@@ -103,7 +103,7 @@ export function wrapInCustomElement(innerHtml, { connected, dbgname }) {
                 }
             }
 
-            // Install the observation
+            // Actually install the observation
             {
                 let value = obj[prop];
                 
