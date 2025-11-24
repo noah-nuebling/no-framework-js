@@ -1,79 +1,74 @@
 // Implementation of the `Idea - quote-unquote-framework` (See our notes repo, [Nov 2025])
 
-export const qs = (...args) => {
-    if (args.length >= 2) return args[0].querySelector(args[1]);
-    else                 return document.querySelector(args[0]);
-};
+// MARK: Sugar for finding elements in the DOM
 
-let debounceTimers = {}
-export const debounce = (id, delay, fn) => {
-    clearTimeout(debounceTimers[id]);
-    debounceTimers[id] = setTimeout(fn, delay);
-};
+    export const qs = (...args) => {
+        if (args.length >= 2) return args[0].querySelector(args[1]);
+        else                 return document.querySelector(args[0]);
+    };
 
-
- /* outlet() is meant for components since you can't define ids/classes on the <mf-component> root node directly from the outside.
-    Usage: 
-        - Give the component an identifier in your declarative UI:
-            let html = `...<htmlstuff>${ MyComponent().outlet('my-component-id') }</htmlstuff>...`
-        - After the component has been rendered in the DOM, get a reference, so you can observe its properties etc.
-            let myComponent = getOutlet('my-component-id')
-        [Nov 2025] 
-    TODO: 
-        -> Maybe move this into the `Idea - quote-unquote-framework` doc.
-*/
-String.prototype.outlet = function (id) {
-    return `<div class="outlet ${id}" style="display: contents">${this}</div>` /// LLM told me to use `style="display: contents"`. Possibly paranoia/overengineering.
-}
-
-export const getOutlet = (...args) => {
-    if (args.length >= 2) return qs(args[0], `.outlet.${args[1]} > *`);
-    else                  return qs(document, `.outlet.${args[0]} > *`);
-}
-
-const connectedCallbacksProvidedByUser = {};
-let instanceCounter = 0;
-
-import { dedent } from "./utils.js"; // TODO: Organize these internal helpers.
-
-export function wrapInCustomElement(innerHtml, { connected, dbgname }) {
-    
-    const instanceid = `${instanceCounter++}`;
-    
-    connectedCallbacksProvidedByUser[instanceid] = connected; // TODO: Rename to init() or reconsider the __mfIsInitialized stuff.
-
-    if (!window.customElements.get('mf-component')) {
-
-        let pendingConnectedCallbacks = [];
-        
-        window.customElements.define('mf-component', class extends HTMLElement {    
-            connectedCallback() {
-
-                if (this.__mfIsInitialized) return;
-                pendingConnectedCallbacks.push(this); // Call connectedCallback() in reverse order per each runLoop iteration, so that child-components are initialized before their parents. () [Nov 2025]
-                
-                debounce("connectedCallback", 0, () => {
-                    for (let this_ of pendingConnectedCallbacks.toReversed()) {
-
-                        if (!connectedCallbacksProvidedByUser[this_.dataset.instanceid]) throw error_wrapInCustomElement_footgun1(this_);  // FOOTGUN PROTECTION
-                        connectedCallbacksProvidedByUser[this_.dataset.instanceid].call(this_);
-                        delete connectedCallbacksProvidedByUser[this_.dataset.instanceid];
-                        
-                        // Mark object as initialized so we don't try to call the connectedCallbacksProvidedByUser again
-                        //      when the object is removed and re-added to the DOM. (Not sure if good or necessary. LLM told me. [Nov 2025])
-                        this_.__mfIsInitialized = true;
-                    }
-                    pendingConnectedCallbacks = [];
-                });
-            }
-        });
+     /* outlet() is meant for components since you can't define ids/classes on the <mf-component> root node directly from the outside.
+        Usage:
+            - Give the component an identifier in your declarative UI:
+                let html = `...<htmlstuff>${ MyComponent().outlet('my-component-id') }</htmlstuff>...`
+            - After the component has been rendered in the DOM, get a reference, so you can observe its properties etc.
+                let myComponent = getOutlet('my-component-id')
+            [Nov 2025]
+        TODO:
+            -> Maybe move this into the `Idea - quote-unquote-framework` doc.
+    */
+    String.prototype.outlet = function (id) {
+        return `<div class="outlet ${id}" style="display: contents">${this}</div>` /// LLM told me to use `style="display: contents"`. Possibly paranoia/overengineering.
     }
 
-    return `<mf-component data-dbgname="${dbgname}" data-instanceid="${instanceid}" style="display: contents">${innerHtml}</mf-component>`;
-}
+    export const getOutlet = (...args) => {
+        if (args.length >= 2) return qs(args[0], `.outlet.${args[1]} > *`);
+        else                  return qs(document, `.outlet.${args[0]} > *`);
+    }
+
+// MARK: wrapInCustomElement – component primitive
+
+    const connectedCallbacksProvidedByUser = {};
+    let instanceCounter = 0;
+
+    export function wrapInCustomElement(innerHtml, { connected, dbgname }) {
+
+        const instanceid = `${instanceCounter++}`;
+
+        connectedCallbacksProvidedByUser[instanceid] = connected; // TODO: Rename to init() or reconsider the __mfIsInitialized stuff.
+
+        if (!window.customElements.get('mf-component')) {
+
+            let pendingConnectedCallbacks = [];
+
+            window.customElements.define('mf-component', class extends HTMLElement {
+                connectedCallback() {
+
+                    if (this.__mfIsInitialized) return;
+                    pendingConnectedCallbacks.push(this); // Call connectedCallback() in reverse order per each runLoop iteration, so that child-components are initialized before their parents. () [Nov 2025]
+
+                    debounce("connectedCallback", 0, () => {
+                        for (let this_ of pendingConnectedCallbacks.toReversed()) {
+
+                            if (!connectedCallbacksProvidedByUser[this_.dataset.instanceid]) throw error_wrapInCustomElement_footgun1(this_);  // FOOTGUN PROTECTION
+                            connectedCallbacksProvidedByUser[this_.dataset.instanceid].call(this_);
+                            delete connectedCallbacksProvidedByUser[this_.dataset.instanceid];
+
+                            // Mark object as initialized so we don't try to call the connectedCallbacksProvidedByUser again
+                            //      when the object is removed and re-added to the DOM. (Not sure if good or necessary. LLM told me. [Nov 2025])
+                            this_.__mfIsInitialized = true;
+                        }
+                        pendingConnectedCallbacks = [];
+                    });
+                }
+            });
+        }
+
+        return `<mf-component data-dbgname="${dbgname}" data-instanceid="${instanceid}" style="display: contents">${innerHtml}</mf-component>`;
+    }
 
 
-// Primitives for UI <-> model syncing
+// MARK: 'Reactive' primitives for UI <-> model syncing
 
     export const listen = function (obj, eventname, callback, triggerImmediately) { 
         obj.addEventListener(eventname, () => callback())
@@ -86,7 +81,7 @@ export function wrapInCustomElement(innerHtml, { connected, dbgname }) {
             obj[`__mf-observers_${prop}__`] = [];
 
             // FOOTGUN PROTECTION
-            // Catch (possibly?) common footgun of trying to observe a computed property, like `HTMLSelectElement.value`
+            //  Catch footgun of trying to observe a computed property, like `HTMLSelectElement.value`
             {   
                 // Look up the propertyDescriptor of obj.prop
                 let desc;
@@ -145,8 +140,7 @@ export function wrapInCustomElement(innerHtml, { connected, dbgname }) {
             -> We're not using default values to reduce footguns and keep consistency. (Not sure if that's the right choice)
     */
 
-
-// Errors
+// MARK: Errors
 
 function error_observe_footgun1() {
     
@@ -176,7 +170,7 @@ function error_wrapInCustomElement_footgun1(this_) {
         to initialize that object. 
         After that, the initialization closure is deleted to avoid memory leaks.
 
-        When the HTML string is added to the DOM a second time, 
+        When the same HTML string is added to the DOM a second time, 
         a new object is instantiated and it would need 
         the initialization closure to run again to become initialized.
         However, the initialization closure will already have been deleted. 
@@ -198,7 +192,7 @@ function error_wrapInCustomElement_footgun1(this_) {
         This lets you manipulate the document.body without having 
         all the objects be re-rendered from the old HTML string.
         
-        Alternatively, recreate the HTML string 'properly' instead of reusing the old HTML string:
+        Or recreate the HTML string 'properly' instead of reusing the old HTML string:
             Bad: 
                 let storedCounterHTML = counterContainer.innerHTML;
                 counterContainer.innerHTML = '';
@@ -209,7 +203,7 @@ function error_wrapInCustomElement_footgun1(this_) {
                 counterContainer.innerHTML = '';
                 // ... Later:
                 counterContainer.innerHTML = Counter({ initialCount: storedCount }); 
-                // ^ Counter() calls ${wrapInCustomElement.name} and passes it a fresh initialization closure.
+                // ^ The Counter() component-function calls ${wrapInCustomElement.name} and passes it a fresh initialization closure.
             
         ---
         
@@ -284,3 +278,12 @@ function error_wrapInCustomElement_footgun1(this_) {
         ...  
     `)); 
 }
+
+// MARK: Internal helpers
+
+    import { dedent } from "./utils.js"; // TODO: Organize these internal helpers.
+    let debounceTimers = {}
+    export const debounce = (id, delay, fn) => {
+        clearTimeout(debounceTimers[id]);
+        debounceTimers[id] = setTimeout(fn, delay);
+    };
