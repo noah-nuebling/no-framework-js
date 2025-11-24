@@ -180,7 +180,7 @@ function error_wrapInCustomElement_footgun1(this_) {
 
         Common trigger: 'document.body.innerHTML += newHTML'. 
         -> This deletes all the HTMLElement objects from document.body 
-            before recreating them from the newHTML string. 
+            before recreating them from the (innerHTML+newHTML) string. 
         
         But there are easy solutions in this case:
 
@@ -190,7 +190,7 @@ function error_wrapInCustomElement_footgun1(this_) {
             document.body.appendChild(newHTML_renderedToObjects)
         
         This lets you manipulate the document.body without having 
-        all the objects be re-rendered from the old HTML string.
+        all the objects from the old HTML string be re-rendered.
         
         Or recreate the HTML string 'properly' instead of reusing the old HTML string:
             Bad: 
