@@ -215,14 +215,12 @@
   </div>
   <div class="whereDaFastListGoes"></div>
 
-
   <script type="module">
 
     import { FastList } from './mini-list.js'
     import { listen, observe, qs, getOutlet } from './mini-framework.js'
 
-    // Global state
-    let currentApproach = null;
+    // TODO: Figure figure out / cleanup all the weird setTimeout() hacks here.
 
     // FPS tracking
     {
