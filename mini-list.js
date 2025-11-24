@@ -27,16 +27,31 @@ export const FastList = ({
 
     console.log(`List called`);
 
-    let html = ``
+    let html = `
+        <div class="FastList_listContainer">
+          <style> @scope {
+              :scope {
+                  height: 100vh;
+                  overflow: auto;
+                  position: relative;
+              }
+              .listContent {
+                  display: block flow;
+                  grid-template-columns: repeat(1, 1fr);
+              }
+          }</style>
+        <div class="FastList_listContent"></div>
+      </div>
+    `
 
     html = wrapInCustomElement(html, {
         connected() {
 
             this.items = []; // Set .items to have the FastList() render them.
 
-            let listContent = this.parentElement.parentElement;
-            let listContainer = listContent.parentElement;
-            let itemContainer = this;
+            let listContent     = qs(this, ".FastList_listContent");
+            let listContainer   = qs(this, ".FastList_listContainer");
+            let itemContainer   = listContent;
 
             let itemHeightCache = {} // Small problem: Scroll pos is not preserved after a page reload because we loose the itemHeightCache. [Nov 2025]
             let visibleElementTracker = {}; // 'visible' items aren't necessarily visible if the preloadSize > 0. It just means they're rendered HTML strings are attached to the DOM.

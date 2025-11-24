@@ -251,22 +251,10 @@
       <span id="renderTime">Render time: -</span>
       <span style="margin-left: 20px;" id="fps">FPS: -</span>
     </span>
-  </div>
 
-  <div class="list-container" id="listContainer">
-      <style> @scope {
-          :scope {
-              height: 100vh;
-              overflow: auto;
-              position: relative;
-          }
-          #listContent {
-              display: block flow;
-              grid-template-columns: repeat(1, 1fr);
-          }
-      }</style>
-    <div class="list-content" id="listContent"></div>
   </div>
+  <div class="whereDaFastListGoes"></div>
+
 
   <script type="module">
 
@@ -318,7 +306,7 @@
     listen(qs('#complexity'), 'change', () => {
       // Add/remove animated background for glassmorphism
       const isGlass = qs('#complexity').value === 'glassmorphism';
-      let bg = document.querySelector('.glass-bg');
+      let bg = qs('.glass-bg');
       if (isGlass && !bg) {
         bg = document.createElement('div');
         bg.className = 'glass-bg';
@@ -337,9 +325,6 @@
     listen(qs('#renderBtn'), 'click', () => {
 
       console.log(`renderBtn click`);
-
-      // const container = qs('#listContent');
-      // const scrollContainer = qs('#listContainer');
 
       // Generate test data
       function generateItems(count) {
@@ -638,9 +623,8 @@
 
       if (!getOutlet('dalist')) {
         const rendering = qs('#rendering').value;
-        const ListComponent = FastList;
 
-        qs('#listContent').innerHTML = ListComponent({
+        qs('.whereDaFastListGoes').innerHTML = FastList({
           estimateHeight(item) {
             const complexity = qs('#complexity').value;
             const heights = {
@@ -665,7 +649,7 @@
 
       qs('#itemCount').value = window.localStorage.getItem('itemCount') ?? 10;
 
-      let scrollContainer = qs('#listContainer');
+      let scrollContainer = qs('.FastList_listContainer');
 
       setTimeout(() => {
           const startTime = performance.now();
