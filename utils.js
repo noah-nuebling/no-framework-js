@@ -1,5 +1,9 @@
 
 
+export function mflog(s) {
+    console.log(s);
+}
+
 /**@param {string} s */
 export function dedent(s) {
 

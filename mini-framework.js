@@ -81,21 +81,27 @@
             obj[`__mf-observers_${prop}__`] = [];
 
             // FOOTGUN PROTECTION
-            //  Catch footgun of trying to observe a computed property, like `HTMLSelectElement.value`
-            {   
-                // Look up the propertyDescriptor of obj.prop
-                let desc;
-                for (let o = obj; o; o = Object.getPrototypeOf(o)) {
-                    if (Object.getOwnPropertyDescriptor(o, prop)) { 
-                        desc = Object.getOwnPropertyDescriptor(o, prop); 
-                        break; 
+            {
+                //  Catch footgun of trying to observe a computed property, like `HTMLSelectElement.value`
+                {
+                    // Look up the propertyDescriptor of obj.prop
+                    let desc;
+                    for (let o = obj; o; o = Object.getPrototypeOf(o)) {
+                        if (Object.getOwnPropertyDescriptor(o, prop)) {
+                            desc = Object.getOwnPropertyDescriptor(o, prop);
+                            break;
+                        }
                     }
-                }
 
-                // Check if there's already a getter/setter for obj.prop
-                if (desc && (desc.get || desc.set)) { // Not sure if this should be an Error or a Warning. I think we might be breaking things by overriding existing setters without calling the original setter from the override??
-                    throw new error_observe_footgun1();
+                    // Check if there's already a getter/setter for obj.prop
+                    if (desc && (desc.get || desc.set)) // Not sure if this should be an Error or a Warning. I think we might be breaking things by overriding existing setters without calling the original setter from the override??
+                        throw new error_observe_footgun1();
+
                 }
+                // Check types
+                //      Just adding errors for problems I actually run into
+                if (!(callback instanceof Function))
+                    throw new error_observe_notafunction(callback);
             }
 
             // Actually install the observation
@@ -105,8 +111,12 @@
                 Object.defineProperty(obj, prop, {
                     get: () => value,
                     set: (newVal) => {
+                        if (value === newVal) return;
                         value = newVal;
-                        for (let cb of obj[`__mf-observers_${prop}__`]) cb(obj[prop]);
+                        setTimeout(() => { // Edgecase: Do callbacks in the next runLoop iteration so that when an obj.x observation callback triggers another obj.x update, the original obj.x callback can finish its logic before the callback for the second update runs. Otherwise, after the second callback returns, the "remainder" of the original obj.x callback will run and may revert some of the changes of the second callback. (Not sure this actually happens, but theoretically I think it can) [Nov 2025]
+                            for (let cb of obj[`__mf-observers_${prop}__`])
+                                cb(obj[prop]);
+                        }, 0);
                     },
                 });
             }
@@ -126,7 +136,7 @@
                 listen(pickerEl, 'input', cb, false),
                 cb();
                 function cb() {
-                    console.log(`prop1 or prop2 or pickerEl changed!`);
+                    mflog(`prop1 or prop2 or pickerEl changed!`);
                 }
             }
 
@@ -141,6 +151,13 @@
     */
 
 // MARK: Errors
+
+function error_observe_notafunction(callback) {
+    return new Error(dedent(`
+        observe():
+        The 'callback' argument (${callback}) is not a function.
+    `))
+}
 
 function error_observe_footgun1() {
     

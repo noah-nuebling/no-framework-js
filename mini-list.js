@@ -29,7 +29,7 @@ export const FastList = ({
     render                          // Returns the HTML string for a given item.
 }) => {
 
-    console.log(`List called`);
+    mflog(`List called`);
 
     let html = `
         <div class="FastList_listContainer">
@@ -78,7 +78,7 @@ export const FastList = ({
                 let resizeObserver = new ResizeObserver((entries) => {
 
                     let newListWidth = listContent.offsetWidth;
-                    console.debug(`listWidth/newListWidth: ${[listWidth, newListWidth]}`)
+                    mflog(`listWidth/newListWidth: ${[listWidth, newListWidth]}`)
                     if (listWidth !== -1 && listWidth !== newListWidth) {
                         _reloadItems(); // TODO: Maybe we could only reset `itemHeightCache` for optimization [Nov 2025]
                     }
@@ -113,7 +113,7 @@ export const FastList = ({
 
                     /// DEBUG
                     if ((0)) {
-                        console.log(dedent(`visibleElementCache: (removal) (firstVisible: ${i})
+                        mflog(dedent(`visibleElementCache: (removal) (firstVisible: ${i})
                         ${Object.keys(visibleElementTracker).join(' ')}
                          
                     `))
@@ -187,7 +187,7 @@ export const FastList = ({
                 /// DEBUG
                 if (1)
                 {
-                    console.log(dedent(`
+                    mflog(dedent(`
                         Rendered elements: ${firstVisibleI}..${i} (count: ${i-firstVisibleI})
                             DOM children: ${itemContainer.children.length}
                             visibleElementCache: ${Object.keys(visibleElementTracker).length}

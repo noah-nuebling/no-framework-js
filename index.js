@@ -1,6 +1,9 @@
-console.log("hellohellohellooo");
+
 import { renderComponentStuff } from "./render-component-stuff.js";
 import { renderInteractiveStuff } from "./render-interactive-stuff.js";
+import { mflog} from "./utils.js";
+
+mflog("hellohellohellooo");
 
 if (1) {
   document.body.innerHTML += `
@@ -40,7 +43,7 @@ if (1) {
       return this;
     },
     eat() {
-      console.log(this.name + " eats!");
+      mflog(this.name + " eats!");
     },
   };
 
@@ -59,13 +62,13 @@ if (1) {
       return this;
     },
     bark() {
-      console.log(this.name + " barks!");
+      mflog(this.name + " barks!");
     },
   };
 
   let dog = alloc(DogProto).init("Hans", "Golden Retriever");
 
-  console.log(`tha dawg: ${dog.name} | ${dog.breed}`);
+  mflog(`tha dawg: ${dog.name} | ${dog.breed}`);
   dog.bark();
   dog.eat();
 }
@@ -81,7 +84,7 @@ if (1) {
     }
 
     eat() {
-      console.log(this.name + " eats!");
+      mflog(this.name + " eats!");
     }
   }
 
@@ -97,13 +100,13 @@ if (1) {
     }
 
     bark() {
-      console.log(this.name + " barks!");
+      mflog(this.name + " barks!");
     }
   }
 
   let dog = new Dog("Hans", "Golden Retriever");
 
-  console.log(`tha dawg: ${dog.name} | ${dog.breed}`);
+  mflog(`tha dawg: ${dog.name} | ${dog.breed}`);
   dog.bark();
   dog.eat();
 }

@@ -261,7 +261,7 @@
         // DEBUG
         if ((0))
         {
-          observe(qs('#itemCount'), 'value', () => { console.log(`This will never fire because you can't observe .value`);  }, false);
+          observe(qs('#itemCount'), 'value', () => { mflog(`This will never fire because you can't observe .value`);  }, false);
         }
 
         // Save scroll position
@@ -315,7 +315,7 @@
                         bg.className = 'glass-bg';
                         document.body.appendChild(bg);
                     } else {
-                        console.log(`Add glass-bg`)
+                        mflog(`Add glass-bg`)
                         document.body.insertAdjacentHTML('beforeend', `
                             <div class="glass-bg"></div>
                         `);
@@ -337,9 +337,9 @@
                 // Restore saved scroll position
                 setTimeout(() => {
                     let savedScrollTop = window.localStorage.getItem('scrollTop');
-                    console.log(`Restoring scroll position: ${savedScrollTop} (current scrollTop: ${qs('.FastList_listContainer').scrollTop})`);
+                    mflog(`Restoring scroll position: ${savedScrollTop} (current scrollTop: ${qs('.FastList_listContainer').scrollTop})`);
                     qs('.FastList_listContainer').scrollTop = savedScrollTop
-                    console.log(`Restoring scroll position: new scrollTop: ${qs('.FastList_listContainer').scrollTop})`);
+                    mflog(`Restoring scroll position: new scrollTop: ${qs('.FastList_listContainer').scrollTop})`);
                 }, 50); // (I don't know why this delay is necessary.)
 
                 ///Benchmark

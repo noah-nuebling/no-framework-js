@@ -1,5 +1,7 @@
 
 import {observe, listen, qs, wrapInCustomElement, getOutlet} from "./mini-framework.js";
+import { mflog } from "./utils.js";
+import { List } from "./SimpleList.js"
 
 // Interactive Components
 
@@ -188,15 +190,65 @@ export function renderInteractiveStuff() {
         })}
         ${ToggleSwitch({ label: 'Dark Mode', initialState: false })}
         ${ToggleSwitch({ label: 'Notifications', initialState: true })}
+        <hr>
+        <label for="pet-select">Choose a pet:</label>
+        <select name="pets" id="pet-select">
+            ${List((item) => {
+                return `<option value=${item.id}>${item.label}</option>`
+            }).outlet('petlist')}
+        </select>
         </div>
     `;
     html = wrapInCustomElement(html, {
         connected() {
+
             let counter = /**@type{Counter}*/getOutlet(this, 'first-counter');
-            console.log(`Initial count: ${counter.count}`);
+            mflog(`Initial count: ${counter.count}`);
             observe(counter, 'count', count => {
-                console.log(`Observed count: ${count}`);
+                mflog(`Observed count: ${count}`);
             }, true)
+
+            let model = {}
+            model.pets = [
+                { id: "",           label: "-Please choose an option--" },
+                { id: "dog",        label: "Dog" },
+                { id: "cat",        label: "Cat" },
+                { id: "hamster",    label: "Hamster" },
+                { id: "parrot",     label: "Parrot" },
+                { id: "goldfish",   label: "Goldfish" },
+                { id: "spider",     label: "Spider" },
+            ]
+            observe(model, 'pets', () => {
+                mflog(`observe pets fired!`);
+                model.pets = List.wrapArrayInObservableProxy(model.pets);
+                getOutlet('petlist').items = model.pets
+            }, true);
+
+            let state = 0;
+            let removedAnimal = {id: 'orangutan', label: "Orangutan"};
+            setInterval(() => {
+                if (state === 0) {
+                    model.pets.push(removedAnimal);
+                    mflog(`pushed: ${model.pets.map(x => x.id)}`);
+                }
+                if (state === 2) {
+                    removedAnimal = model.pets.pop();
+                    mflog(`pppped: ${model.pets.map(x => x.id)}`);
+                }
+                if (state === 1) {
+                    let popped = model.pets.pop();
+                    mflog(`popped: ${popped.id}`);
+                    model.pets.unshift(popped);
+                }
+                state = (state+1) % 3;
+            }, 1000);
+            setTimeout(() => {
+                mflog(`model.pets.push`)
+
+            }, 1000);
+
+
+
         },
         dbgname: renderInteractiveStuff.name
     })
