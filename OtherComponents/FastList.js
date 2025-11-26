@@ -1,5 +1,5 @@
-import { dedent } from './utils.js'
-import { observe, wrapInCustomElement, listen, debounce, qs } from "./mini-framework.js"
+import { dedent } from '../utils.js'
+import { observe, wrapInCustomElement, listen, debounce, qs } from "../NoFramework/NoFramework.js"
 
 /**
     - Performance test result for FastList(): [Nov 2025]
@@ -17,10 +17,6 @@ import { observe, wrapInCustomElement, listen, debounce, qs } from "./mini-frame
                             You can have 1'000'000 super expensive-to-draw items, and it's rock solid 60 fps on my M1 MBA.
                     -> I think the HTML rendering is not the bottleneck but that this optimization helps the browser cache the painting better or something. (But not sure.)
         - We're not doing full element-recycling like NSTableView, I don't think that's a bottleneck here.
-        - TODO: `SimpleList()`.
-            The FastList() is overengineered for most usecases. Having a SimpleList((item) => <HTMLString>) interface
-                which simply concatenates the HTML of each element together would be more simple and flexible, and understandable.
-                (It would be more 'flexible' since it would support flexbox and grid, instead of only manually calculated vertical layout.)
 */
 
 export const FastList = ({

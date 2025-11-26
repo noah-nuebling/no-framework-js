@@ -34,7 +34,7 @@ function Card(title, body) {
     return html;
 }
 
-export function renderComponentStuff() {
+export function test_StuffComponent() {
 
     return `
         <div style="margin-top: 40px">

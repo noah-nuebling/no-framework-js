@@ -218,9 +218,9 @@
   <script type="module">
 
     import { FastList } from './mini-list.js'
-    import { listen, observe, qs, getOutlet } from './mini-framework.js'
+    import { listen, observe, qs, getOutlet } from './NoFramework/NoFramework.js'
 
-    // TODO: Figure figure out / cleanup all the weird setTimeout() hacks here.
+    // TODO: Figure figure out / cleanup all the weird doLater() hacks here.
 
     // FPS tracking
     {
@@ -266,7 +266,7 @@
 
         // Save scroll position
 
-        setTimeout(() => {
+        doLater(() => {
             listen(qs('.FastList_listContainer'), 'scroll', (x) => {
                 window.localStorage.setItem('scrollTop', qs('.FastList_listContainer').scrollTop)
             }, false);
@@ -327,7 +327,7 @@
             }
 
             // Render the list
-            setTimeout(() => {
+            doLater(() => {
                 // Benchmark
                 const startTime = performance.now();
 
@@ -335,7 +335,7 @@
                 getOutlet('dalist').items = generateItems(parseInt(qs('#itemCount').value));
 
                 // Restore saved scroll position
-                setTimeout(() => {
+                doLater(() => {
                     let savedScrollTop = window.localStorage.getItem('scrollTop');
                     mflog(`Restoring scroll position: ${savedScrollTop} (current scrollTop: ${qs('.FastList_listContainer').scrollTop})`);
                     qs('.FastList_listContainer').scrollTop = savedScrollTop

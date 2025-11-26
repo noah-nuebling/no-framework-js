@@ -1,5 +1,10 @@
 // Implementation of the `Idea - quote-unquote-framework` (See our notes repo, [Nov 2025])
 
+import { dedent } from "../utils.js"; // TODO: Organize these internal helpers.
+
+// NoFramework coding guideline:
+//      Don't use setTimeout() in the framework code! -> It forces the user to also use setTimeout() to wait for our updates.
+
 // MARK: Sugar for finding elements in the DOM
 
     export const qs = (...args) => {
@@ -23,49 +28,47 @@
     }
 
     export const getOutlet = (...args) => {
-        if (args.length >= 2) return qs(args[0],  `.outlet.${args[1]} > *`);
-        else                  return qs(document, `.outlet.${args[0]} > *`);
+        if (args.length >= 2) return qs(args[0],  `.${args[1]} > *`); /// TODO: (This doesn't work for nested components) (But if it's simple users feel confident switching back to qs() for complex cases?)
+        else                  return qs(document, `.${args[0]} > *`);
     }
 
-// MARK: wrapInCustomElement – component primitive
+// MARK: wrapInCustomElement – primitive for adding javascript to components.
 
-    const connectedCallbacksProvidedByUser = {};
+    const inits = {};
     let instanceCounter = 0;
 
-    export function wrapInCustomElement(innerHtml, { connected, dbgname }) {
+    export function wrapInCustomElement(innerHtml, { connected: init, dbgname }) {
 
-        const instanceid = `${instanceCounter++}`;
+        const id = `${instanceCounter++}`;
 
-        connectedCallbacksProvidedByUser[instanceid] = connected; // TODO: Rename to init() or reconsider the __mfIsInitialized stuff.
+        inits[id] = init;
 
         if (!window.customElements.get('mf-component')) {
-
-            let pendingConnectedCallbacks = [];
 
             window.customElements.define('mf-component', class extends HTMLElement {
                 connectedCallback() {
 
-                    if (this.__mfIsInitialized) return;
-                    pendingConnectedCallbacks.push(this); // Call connectedCallback() in reverse order per each runLoop iteration, so that child-components are initialized before their parents. () [Nov 2025]
+                    if (this.__MFIsInitialized) return;
 
-                    debounce("connectedCallback", 0, () => {
-                        for (let this_ of pendingConnectedCallbacks.toReversed()) {
+                    for (let child of [...this.querySelectorAll("mf-component")].reverse()) doThings.call(child); // This code causes child-components to be initialized before their parents. (For strange reasons, connectedCallback() does this in reverse)
+                    doThings.call(this);
 
-                            if (!connectedCallbacksProvidedByUser[this_.dataset.instanceid]) throw error_wrapInCustomElement_footgun1(this_);  // FOOTGUN PROTECTION
-                            connectedCallbacksProvidedByUser[this_.dataset.instanceid].call(this_);
-                            delete connectedCallbacksProvidedByUser[this_.dataset.instanceid];
+                    function doThings(){
 
-                            // Mark object as initialized so we don't try to call the connectedCallbacksProvidedByUser again
-                            //      when the object is removed and re-added to the DOM. (Not sure if good or necessary. LLM told me. [Nov 2025])
-                            this_.__mfIsInitialized = true;
-                        }
-                        pendingConnectedCallbacks = [];
-                    });
+                        if (this.__MFIsInitialized) return;
+
+                        let id = this.dataset.instanceid;
+                        if (!inits[id]) throw error_wrapInCustomElement_footgun1(this);  // FOOTGUN PROTECTION
+                        inits[id].call(this);
+                        delete inits[id];
+
+                        this.__MFIsInitialized = true;
+                    };
                 }
             });
         }
 
-        return `<mf-component data-dbgname="${dbgname}" data-instanceid="${instanceid}" style="display: contents">${innerHtml}</mf-component>`;
+        return `<mf-component data-dbgname="${dbgname}" data-instanceid="${id}" style="display: contents">${innerHtml}</mf-component>`;
     }
 
 
@@ -76,63 +79,86 @@
         if (triggerImmediately) callback();
     }
 
-    export const observe = function (obj, prop, callback, triggerImmediately) {
+    export const observe = function (obj, prop, callback, triggerImmediately = true) {
 
-        if (!obj[`__mf-observers_${prop}__`]) { // First time observing this property
-            obj[`__mf-observers_${prop}__`] = [];
+        // FOOTGUN PROTECTION
+        {
 
-            // FOOTGUN PROTECTION
+            // Check types and stuff
+            //      Just adding errors for problems I actually find myself making.
+            if (!(callback instanceof Function)) throw error_observe_notafunction(callback);
+            if (!obj)                            throw error_observe_nilobj(obj);
+            
+            //  Catch footgun of trying to observe a computed property, like `HTMLSelectElement.value`
+            if (!obj[`__mf-observers_${prop}__`])
             {
-                //  Catch footgun of trying to observe a computed property, like `HTMLSelectElement.value`
-                {
-                    // Look up the propertyDescriptor of obj.prop
-                    let desc;
-                    for (let o = obj; o; o = Object.getPrototypeOf(o)) {
-                        if (Object.getOwnPropertyDescriptor(o, prop)) {
-                            desc = Object.getOwnPropertyDescriptor(o, prop);
-                            break;
-                        }
+                // Look up the propertyDescriptor of obj.prop
+                let desc;
+                for (let o = obj; o; o = Object.getPrototypeOf(o)) {
+                    if (Object.getOwnPropertyDescriptor(o, prop)) {
+                        desc = Object.getOwnPropertyDescriptor(o, prop);
+                        break;
                     }
-
-                    // Check if there's already a getter/setter for obj.prop
-                    if (desc && (desc.get || desc.set)) // Not sure if this should be an Error or a Warning. I think we might be breaking things by overriding existing setters without calling the original setter from the override??
-                        throw new error_observe_footgun1();
-
                 }
-                // Check types
-                //      Just adding errors for problems I actually run into
-                if (!(callback instanceof Function))
-                    throw new error_observe_notafunction(callback);
+
+                // Check if there's already a getter/setter for obj.prop
+                if (desc && (desc.get || desc.set))  throw error_observe_footgun1(obj, prop); // Not sure if this should be an Error or a Warning. I think we might be breaking things by overriding existing setters without calling the original setter from the override??
+
             }
 
-            // Actually install the observation
-            {
+            // Defer recursive calls to the same observation callback.
+            //      Prevents edge-case issue where observation callback for a new value runs before the observation callback for the older value finishes (and then when it finishes, it may reset some state to be outdated.)
+            //      Weird edge case with this solution: If you observe multiple properties with the same callback function, this will prevent recursive re-entering of that function, but only if you don't wrap the callback function in a closure like () => cb(). [Nov 2025]
+            //          ... I don't see a general solution. Maybe just pray that this doesn't happen in practice? Maybe turn this into a 'nonReenteringWrapper()` helper function that users can use if they ever have such problems?
+            //      TODO: Is there a solution without weird edge-cases? Is this even worth having in the codebase or can users just handle this problem themselves?
+            //      Alternative idea: You could defer all observation callbacks triggered by other observation callbacks. But that would also be unintuitive for the common case I think?
+            let rawCallback = callback;
+            rawCallback.__MFRecursionTracker = 0;
+            callback = (newValue) => {
+                if (rawCallback.__MFRecursionTracker > 0) {
+                    rawCallback.__MFRecursionTracker += 1;
+                    return;
+                }
+
+                rawCallback.__MFRecursionTracker += 1;
+                rawCallback(newValue);
+                rawCallback.__MFRecursionTracker -= 1;
+
+                if (rawCallback.__MFRecursionTracker > 0) {
+                    rawCallback(obj[prop]);
+                    rawCallback.__MFRecursionTracker = 0;
+                }
+            }
+        }
+
+        // Core logic
+        {
+            if (!obj[`__mf-observers_${prop}__`]) { // First time observing this property
+                obj[`__mf-observers_${prop}__`] = [];
+
                 let value = obj[prop];
-                
+
                 Object.defineProperty(obj, prop, {
                     get: () => value,
                     set: (newVal) => {
                         if (value === newVal) return;
                         value = newVal;
-                        setTimeout(() => { // Edgecase: Do callbacks in the next runLoop iteration so that when an obj.x observation callback triggers another obj.x update, the original obj.x callback can finish its logic before the callback for the second update runs. Otherwise, after the second callback returns, the "remainder" of the original obj.x callback will run and may revert some of the changes of the second callback. (Not sure this actually happens, but theoretically I think it can) [Nov 2025]
-                            for (let cb of obj[`__mf-observers_${prop}__`])
-                                cb(obj[prop]);
-                        }, 0);
+                        for (let cb of obj[`__mf-observers_${prop}__`]) cb(obj[prop]);
                     },
                 });
             }
+
+            obj[`__mf-observers_${prop}__`].push(callback);
+
+            if (triggerImmediately) callback(obj[prop]);
         }
-
-        obj[`__mf-observers_${prop}__`].push(callback);
-
-        if (triggerImmediately) callback(obj[prop]);
     }
 
     /**
         There is no 'observeMultiple()' or 'combineCallbacks()' primitive. Instead you can just use this pattern:
 
             {
-                observe(obj,     'prop1', cb, false),
+                observe(obj,     'prop1', cb, false), // Pass false for triggerImmediately to prevent cb() from being called multiple times.
                 observe(obj,     'prop2', cb, false),
                 listen(pickerEl, 'input', cb, false),
                 cb();
@@ -149,6 +175,10 @@
             The user will usually want `triggerImmediately = true` for observe(), but not when using it in combineCallbacks().
             The user will usually want `triggerImmediately = false` for listen(),
             -> We're not using default values to reduce footguns and keep consistency. (Not sure if that's the right choice)
+            -> Update: TODO: Reconsider: Actually, I think you *never* need the triggerImmediately arg on listen(), since you'd never
+                initialize the model from the DOM. You'd initialize the DOM from the model. And you observe() the model.
+                And triggerImmediately automates initialization when you do that.
+                TODO: Reconsider: Is it really good to have a wrapper around addEventListener()? Similar observe()/listen() API is nice, but the wrapper doesn't do anything.
     */
 
 // MARK: Errors
@@ -160,7 +190,7 @@ function error_observe_notafunction(callback) {
     `))
 }
 
-function error_observe_footgun1() {
+function error_observe_footgun1(obj, prop) {
     
     return new Error(dedent(`
         observe():
@@ -169,6 +199,16 @@ function error_observe_footgun1() {
         Tip: For HTMLElements, you may have to listen() for 'input', 'change', etc. instead of observing properties such as 'value' directly.
     `));
 
+}
+
+function error_observe_nilobj(obj) {
+
+    // TODO: Should observe() just be 'null safe' and do nothing when you pass it null just like Objective-C?
+    //      Maybe that only works in an environment where *everything* works that way and users have that expectation? Not sure how JS works there.
+
+    return new Error(dedent(`
+        The object passed to observe() is ${obj}
+    `));
 }
 
 function error_wrapInCustomElement_footgun1(this_) {
@@ -210,19 +250,24 @@ function error_wrapInCustomElement_footgun1(this_) {
         This lets you manipulate the document.body without having 
         all the objects from the old HTML string be re-rendered.
         
-        Or recreate the HTML string 'properly' instead of reusing the old HTML string:
+        Or recreate the HTML string 'properly' by calling wrapInCustomElement() again, instead of reusing the old HTML string:
             Bad: 
-                let storedCounterHTML = counterContainer.innerHTML;
-                counterContainer.innerHTML = '';
-                // ... Later
-                counterContainer.innerHTML = storedCounterHTML;
+                
+                let counterContainer.innerHTML = CounterComponent({ initialCount: 10 }); // Create the component and add it to the DOM
+                
+                let storedCounterHTML = counterContainer.innerHTML; // Store the component's *HTML string*
+                counterContainer.innerHTML = '';                    // Remove the component from the DOM.
+                
+                counterContainer.innerHTML = storedCounterHTML;     // Later, add the old HTML string back to the DOM. Causes this error!
             Good: 
-                let storedCount = counterContainer.firstChild.count;
-                counterContainer.innerHTML = '';
-                // ... Later:
-                counterContainer.innerHTML = Counter({ initialCount: storedCount }); 
-                // ^ The Counter() component-function calls ${wrapInCustomElement.name} and passes it a fresh initialization closure.
-            
+                let counterContainer.innerHTML = CounterComponent({ initialCount: 10 }); // Create the component and add it to the DOM
+                
+                let storedCount = counterContainer.firstChild.count; // Store the component's *state*.
+                counterContainer.innerHTML = '';                     // Remove the component from the DOM.
+                
+                counterContainer.innerHTML = CounterComponent({ initialCount: storedCount }); // Recreate a fresh component from the stored state.
+                                                                                              // (The CounterComponent() function calls wrapInCustomElement again and passes it a fresh initialization closure.) 
+                    
         ---
         
         General principle:
@@ -236,7 +281,7 @@ function error_wrapInCustomElement_footgun1(this_) {
         back later.
         
         Discussion: 
-        It's maybe a bit annoying, but I think it allows to keep the rest of the mini-framework.js 
+        It's maybe a bit annoying, but I think it allows to keep the rest of the NoFramework.js 
         API more simple and practical.
         
         I think it'll be fine in practice. 
@@ -262,12 +307,12 @@ function error_wrapInCustomElement_footgun1(this_) {
 
             You could also maybe just not have arguments for the component functions to 
             avoid the footgun. I'm not sure how you would warn people if they're
-            'doing it wrong' though and it might also be an annoying restriction in practise.
+            'doing it wrong' though and it might also be an annoying restriction in practice.
 
             You could keep the instance-specific initialization closures and just store them
             globally and mark them as 'has run already' and give the user a 'flush' function
             if they take up too much memory. But then the same problems can appear after they've
-            flushed things. Not sure how this would play out in practise.
+            flushed things. Not sure how this would play out in practice.
 
             Everything kinda seems worse than what we currently have:
             Instance-specific initialization closures that auto-cleanup 
@@ -277,18 +322,24 @@ function error_wrapInCustomElement_footgun1(this_) {
 
             ... More ideas:
 
-            Don't make MyComponent() functions return HTML, make them return rendered objects instead. 
+            Don't make MyComponent() functions return HTML, make them return rendered HTMLElement objects instead. 
                 -> They would store their data and not need to be re-initialized.
                 However, then you wouldn't have the nice mixing of writing plain HTML with 
                 components interpolated in between.
                 You'd have to write everything as a DSL of nested component-functions.
                 Also you loose the nice 'progressive complexity' where simple components can 
                 just be functions that return HTML strings and nothing else.
+                
+                The DSL of nested function-calls approach also works fine. That's kinda what SwiftUI is and how I plan to
+                    write AppKit code in the future. Maybe it's worth it? 
+                    But the simplest way and most expressive way to write simple layouts for the browser is just HTML+CSS, 
+                    and its nice  to be able to start with that and then just mix in components freely, without having 
+                    to convert everything to a JS DSL.
 
             Just leak all the closures.
                 Maybe the memory use is so negligible that it never matters. 
                 (I haven't tested this.)
-                ... But with the virtual scrolling we implemented in FastList(), we could leak millions of items very easily – I don't think that's good.
+                ... But with the virtual scrolling we implemented in FastList(), we could leak millions of items very easily – I don't think that's good.
 
         ---
 
@@ -296,12 +347,3 @@ function error_wrapInCustomElement_footgun1(this_) {
         ...  
     `)); 
 }
-
-// MARK: Internal helpers
-
-    import { dedent } from "./utils.js"; // TODO: Organize these internal helpers.
-    let debounceTimers = {}
-    export const debounce = (key, delay, fn) => {
-        clearTimeout(debounceTimers[key]);
-        debounceTimers[key] = setTimeout(fn, delay);
-    };

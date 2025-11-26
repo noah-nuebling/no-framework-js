@@ -4,6 +4,20 @@ export function mflog(s) {
     console.log(s);
 }
 
+
+export function doLater(callback, delay) {
+    //console.trace();
+    return setTimeout(callback, delay);
+}
+
+// MARK: Internal helpers
+
+let debounceTimers = {}
+export const debounce = (key, delay, fn) => {
+    clearTimeout(debounceTimers[key]);
+    debounceTimers[key] = doLater(fn, delay);
+};
+
 /**@param {string} s */
 export function dedent(s) {
 

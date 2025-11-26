@@ -1,6 +1,6 @@
 
-import { renderComponentStuff } from "./render-component-stuff.js";
-import { renderInteractiveStuff } from "./render-interactive-stuff.js";
+import { test_StuffComponent } from "./Test_StuffComponent.js";
+import { test_StuffInteractive } from "./Test_StuffInteractive.js";
 import { mflog} from "./utils.js";
 
 mflog("hellohellohellooo");
@@ -12,7 +12,7 @@ if (1) {
                 font-family: sans-serif;
             }
         </style>
-        ${renderComponentStuff()}
+        ${test_StuffComponent()}
     `;
 }
 
@@ -139,5 +139,5 @@ if (1) {
 }
 
 if (1) {
-  document.body.innerHTML += renderInteractiveStuff();
+  document.body.innerHTML += test_StuffInteractive();
 }

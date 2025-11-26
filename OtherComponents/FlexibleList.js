@@ -1,29 +1,53 @@
 
 
-import {wrapInCustomElement, observe, debounce} from "./mini-framework.js";
-import { dedent, mflog } from "./utils.js"
+import {wrapInCustomElement, observe, debounce} from "../NoFramework/NoFramework.js";
+import { dedent, mflog } from "../utils.js"
+
+
+// Comparison with SimpleList.js
+//
+//      -> This is overengineered for anything I'd wanna do on mac-mouse-fix-website. Just use SimpleList.js instead.
+//              I'd probably also publish SimpleList() with the NoFramework (if I ever publish it)
+//
+// Comparison with FastList.js
+//    The FastList() pros:
+//      - Has great optimizations for scrolling lists (items that are not on screen are not added to the DOM.)
+//    But FlexibleList() pros:
+//      - Is more 'flexible' since it simply renders the HTML for each item into the DOM – instead of  manually calculating a vertical layout.
+//          -> Supports flexbox, grid or even <select> – anything that HTML/CSS can do.
+//      - Simpler implementation
+//      - Tracks updates to this.items and updates the DOM automatically.
+//
+//    (It would be more
 
 // TODO: Make this work when this.items contains multiple identical objects.
-//      (items cannot be cache-keys)
-// TODO: Maybe allow items having a `key` attribute which they are identified by instead of relying on object-equality ?
-// TODO: Consider if the automatic tracking of the items array is even worth the complexity. Why not have NSTableView style
-//      reloadItems(), insertItems() etc. APIs? (Although the insert stuff in NSTableView *is* kind of annoying since you have to do diffing yourself IIRC? [Nov 2025])
-// TODO: Maybe mention that if users want to track updates to item contents and update the items in the DOM accordingly, they can use wrapInCustomElement()
-//      (Exactly the same pattern as when declaring components)
+//      (items cannot be keys of the (modelItem<->DOM-child) association – See __MFListChild)
+// TODO: Maybe allow items having a `key` attribute which they are identified by instead of only relying on object-equality for diffing?
+// TODO: Consider if the automatic tracking/diffing of the items array is even worth the complexity. Why not have NSTableView style procedural API?
+//      In most cases, just reloadItems() to reload everything is fine. (Enough for anything on the mac-mouse-fix website.)
+//      If you do need granular updates while preserving item state and stuff you can have insertItem() or things like that
+//          Counter:
+//              The insert stuff in NSTableView *is* kind of annoying since you have to do diffing yourself if you want animations IIRC? [Nov 2025]
+//              ... But this thing also won't do animations it seems, except with `document.startViewTransition()` which caused ghosting and weirdness on the whole page in my testing.
+//      -> Maybe this is overengineered and should just rerender all the items when this.items is set, but without deep observation.
+//
+// TODO: Maybe mention in `Idea - quote-unquote-framework` that if users want to track updates to item contents and update the items in the DOM accordingly, they can use wrapInCustomElement()
+//      (Exactly the same pattern as when declaring components!)
 
-/** @typedef { HTMLElement & { items: any[], observeItems: (model: any, prop: string) => void}} List */
-export function List(renderItem) {
+/** @typedef { HTMLElement & { items: any[], observeItems: (model: any, prop: string) => void}} FlexibleList */
+export function FlexibleList(renderItem) {
 
     let html = ""
     html = wrapInCustomElement(html, {
+
         dbgname: "List",
-        /** @this {List} */connected() {
+        /** @this {FlexibleList} */connected() {
 
             this.items = [];
 
-            this.observeItems = (model, prop) => { // Convenience API for clients.
+            this.observeItems = (model, prop) => { // Convenience macro for common pattern
                 observe(model, prop, () => {
-                    model[prop] = List.wrapArrayInObservableProxy(model[prop]);
+                    model[prop] = FlexibleList.wrapArrayInObservableProxy(model[prop]);
                     this.items = model[prop];
                 }, true)
             }
@@ -40,50 +64,34 @@ export function List(renderItem) {
                 // Call render when the items array is mutated.
                 this.items.__mfobservableProxy_Callbacks.push(() => {
                     debounce(`List() observation (${this.dataset.instanceid})`, 0, () => { // debounce because Array.shift() triggers and observation callback for every element in the array. || TODO: Accessing instanceid here is hacky
-                        //document.startViewTransition(() => {
+                        //document.startViewTransition(() => { // TODO; Maybe make this configurable || This breaks interactions and creates ghosting on the whole page. [Nov 2025]
                             render.bind(this)();
-                        //});             // TODO; Maybe make this configurable || This breaks interactions and creates ghosting on the whole page. [Nov 2025]
+                        //});
                     })
                 })
 
             }, false);
 
-
-            let itemsToElements = new Map();
-
-            /** @this {List} */
+            /** @this {FlexibleList} */
             function render() {
-
-                // Complex implementation – diff to find out which items in the model have been inserted / moved / removed,
-                //      and then apply those same modifications to the DOM nodes.
-                //      (Necessary over simply rerendering everything or re-adding all the DOM nodes, to preserve the <select> selection in my testing – maybe other things) [Nov 2025]
-
-                // Update the DOM to match this.item
-                {
-                    for (let i = 0; i < this.items.length; i++) {
-                        if (itemsToElements.get(this.items[i]))   this.insertBefore(itemsToElements.get(this.items[i]), this.children[i]); // Move the existing node to i
-                        else                                      this.insertBefore(_renderHTML(renderItem(this.items[i])), this.children[i]); // Insert the new node at i
-                    }
-                    while (this.children.length > this.items.length) this.lastChild.remove(); // Remove nodes who no longer have corresponding entries in this.items
+                for (let i = 0; i < this.items.length; i++) {
+                    if (this.items[i].__MFListChild)        this.insertBefore(this.items[i].__MFListChild,            this.children[i]); // Move the existing node to i
+                    else                                    this.insertBefore(_renderHTML(renderItem(this.items[i])), this.children[i]); // Insert the new node at i
+                    this.items[i].__MFListChild = this.children[i];
                 }
-
-                // Update cache
-                itemsToElements = new Map();
-                for (let i = 0; i < this.children.length; i++)
-                    itemsToElements.set(this.items[i], this.children[i]);
+                while (this.children.length > this.items.length) this.lastChild.remove(); // Remove nodes who no longer have corresponding entries in this.items                }
             }
         },
     })
-
     return html;
 }
 
-List.wrapArrayInObservableProxy = (arr) => {
+FlexibleList.wrapArrayInObservableProxy = (arr) => {
 
     if (arr.__mfobservableProxy_Callbacks) return arr;
 
     let proxy = new Proxy(arr, {
-        set(target, p, newValue) { // TODO: Maybe add the same setTimeout() and equality checking that we're doing in observe() to handle recursion edge-cases. [Nov 2025]
+        set(target, p, newValue) { // TODO: Maybe add the same doLater() and equality checking that we're doing in observe() to handle recursion edge-cases. [Nov 2025]
             target[p] = newValue;
             if (p !== "length")  for (let cb of arr.__mfobservableProxy_Callbacks) cb();
             return true;
@@ -93,7 +101,6 @@ List.wrapArrayInObservableProxy = (arr) => {
             for (let cb of arr.__mfobservableProxy_Callbacks) cb();
             return true;
         }
-
     })
 
     arr.__mfobservableProxy_Callbacks = [];
