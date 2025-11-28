@@ -1,18 +1,18 @@
 // Implementation of the `Idea - quote-unquote-framework` (See our notes repo, [Nov 2025])
 
-import { dedent } from "../utils.js"; // TODO: Organize these internal helpers.
+import { dedent, mflog } from "../utils.js"; // TODO: Organize these internal helpers.
 
 // NoFramework coding guideline:
 //      Don't use setTimeout() in the framework code! -> It forces the user to also use setTimeout() to wait for our updates.
 
 // MARK: Sugar for finding elements in the DOM
 
-    export const qs = (...args) => {
+    export function qs(...args) {
         if (args.length >= 2) return args[0].querySelector(args[1]);
         else                 return document.querySelector(args[0]);
     };
 
-     /* outlet() is meant for components since you can't define ids/classes on the <mf-component> root node directly from the outside.
+     /* outlet() is meant for components since you can't define ids/classes on the <mf-custom-element> root node directly from the outside.
         Usage:
             - Give the component an identifier in your declarative UI:
                 let html = `...<htmlstuff>${ MyComponent().outlet('my-component-id') }</htmlstuff>...`
@@ -24,62 +24,62 @@ import { dedent } from "../utils.js"; // TODO: Organize these internal helpers.
         TODO: 'polluting the global name space' is usually not done in JS. (Says Claude) Component libraries would have to rename this to avoid conflicts. Maybe shouldn't do this at all, and just make outlet() a regular function.
     */
     String.prototype.outlet = function (id) {
-        return `<div class="outlet ${id}" style="display: contents">${this}</div>` /// LLM told me to use `style="display: contents"`. Possibly paranoia/overengineering.
+        return `<div class="outlet ${id}" style="display: contents">${this}</div>`
     }
 
-    export const getOutlet = (...args) => {
-        if (args.length >= 2) return qs(args[0],  `.${args[1]} > *`); /// TODO: (This kinda sucks for querying nested components) (But if it's simple users feel confident switching back to qs() for complex cases?)
+    export function getOutlet(...args) {
+        if (args.length >= 2) return qs(args[0],  `.${args[1]} > *`); /// TODO: (This kinda sucks for querying nested components) (But if implementation is simple, users feel confident switching back to qs() for complex cases?)
         else                  return qs(document, `.${args[0]} > *`);
     }
 
 // MARK: wrapInCustomElement – primitive for adding javascript to components.
 
-    const inits = {};
+    let inits = {};
     let instanceCounter = 0;
 
     export function wrapInCustomElement(innerHtml, { connected: init, dbgname }) {
 
-        const id = `${instanceCounter++}`;
+        let id = `${instanceCounter++}`;
 
         inits[id] = init;
 
-        if (!window.customElements.get('mf-component')) {
+        if (!window.customElements.get('mf-custom-element')) {
 
-            window.customElements.define('mf-component', class extends HTMLElement {
-                connectedCallback() {
-
-                    if (this.__MFIsInitialized) return;
-
-                    for (let child of [...this.querySelectorAll("mf-component")].reverse()) doThings.call(child); // This code causes child-components to be initialized before their parents. (For strange reasons, connectedCallback() does this in reverse)
-                    doThings.call(this);
-
-                    function doThings(){
-
-                        if (this.__MFIsInitialized) return;
-
-                        let id = this.dataset.instanceid;
-                        if (!inits[id]) throw error_wrapInCustomElement_footgun1(this);  // FOOTGUN PROTECTION
-                        inits[id].call(this);
-                        delete inits[id];
-
-                        this.__MFIsInitialized = true;
-                    };
+            window.customElements.define('mf-custom-element', class extends HTMLElement {
+                constructor() {
+                    
+                    super();                    
+                    window.customElements.upgrade(this); // Make children's constructor()s run first. Thanks to https://stackoverflow.com/a/72150717. Shame on merchant of complexity @annevk in GitHub for making this complicated for everyone and being condescending about it. [Nov 2025]
+                    
+                    mflog(`mf-custom-element constructor(): ${this.dataset.dbgname} (${this.dataset.instanceid})`);
+                    
+                    let id = this.dataset.instanceid;
+                    if (!inits[id]) throw error_wrapInCustomElement_footgun1(this);  // FOOTGUN PROTECTION
+                    inits[id].call(this);
+                    delete inits[id];
                 }
             });
         }
 
-        return `<mf-component data-dbgname="${dbgname}" data-instanceid="${id}" style="display: contents">${innerHtml}</mf-component>`;
+        return `
+            <mf-custom-element 
+                data-dbgname="${dbgname}" 
+                data-instanceid="${id}" 
+                style="display: contents"
+            >
+                ${innerHtml}
+            </mf-custom-element>`;
     }
 
 
 // MARK: 'Reactive' primitives for UI <-> model syncing
 
-    export const listen = function (obj, eventname, callback, triggerImmediately = false) {
+    export function listen(obj, eventname, callback, triggerImmediately = false) {
         obj.addEventListener(eventname, () => callback())
         if (triggerImmediately) callback();
     }
 
-    export const observe = function (obj, prop, callback, triggerImmediately = true) {
+    export function observe(obj, prop, callback, triggerImmediately = true) {
 
         // FOOTGUN PROTECTION
         {
@@ -105,29 +105,51 @@ import { dedent } from "../utils.js"; // TODO: Organize these internal helpers.
                 if (desc && (desc.get || desc.set))  throw error_observe_footgun1(obj, prop); // Not sure if this should be an Error or a Warning. I think we might be breaking things by overriding existing setters without calling the original setter from the override??
 
             }
+        }
+        {
 
-            // Defer recursive calls to the same observation callback.
+            // Defer recursive calls to prevent theoretical stale-state bugs
             //      Prevents edge-case issue where observation callback for a new value runs before the observation callback for the older value finishes (and then when it finishes, it may reset some state to be outdated.)
-            //      Weird edge case with this solution: If you observe multiple properties with the same callback function, this will prevent recursive re-entering of that function, but only if you don't wrap the callback function in a closure like () => cb(). [Nov 2025]
+            //      Weird edge case with this solution: If you observe multiple properties with the same callback function, this will prevent recursive re-entering of that function, but not in all cases if you wrap the callback function in a closure like () => cb(). [Nov 2025]
             //          ... I don't see a general solution. Maybe just pray that this doesn't happen in practice? Maybe turn this into a 'nonReenteringWrapper()` helper function that users can use if they ever have such problems?
-            //      TODO: Is there a solution without weird edge-cases? Is this even worth having in the codebase or can users just handle this problem themselves?
+            //      TODO: Is there a solution without weird edge-cases? Is this even worth having in the codebase or can users just handle this problem themselves? Does this bug even ever happen in practice?
             //      Alternative idea: You could defer all observation callbacks triggered by other observation callbacks. But that would also be unintuitive for the common case I think? Because the user might have to wait for updates with setTimeout();
-            let rawCallback = callback;
-            rawCallback.__MFRecursionTracker = 0;
-            callback = (newValue) => {
-                if (rawCallback.__MFRecursionTracker > 0) { /// TODO: Maybe update the internal prefixes from MF -> NF (NoFramework) or whatever we'll end up calling this.
+            
+            if (0) {
+                
+                // Defer re-enterings
+                let rawCallback = callback;
+                rawCallback.__MFRecursionTracker = 0;
+                callback = newValue => {
+
+                    if (__MFRecursionTracker > 1000) throw error_observe_infinite(obj, prop);
+
+                    if (rawCallback.__MFRecursionTracker > 0) { /// TODO: Maybe update the internal prefixes from MF -> NF (NoFramework) or whatever we'll end up calling this.
+                        rawCallback.__MFRecursionTracker += 1;
+                        return;
+                    }
+
                     rawCallback.__MFRecursionTracker += 1;
-                    return;
-                }
+                    rawCallback(newValue);
+                    rawCallback.__MFRecursionTracker -= 1;
 
-                rawCallback.__MFRecursionTracker += 1;
-                rawCallback(newValue);
-                rawCallback.__MFRecursionTracker -= 1;
-
-                if (rawCallback.__MFRecursionTracker > 0) {
-                    rawCallback(obj[prop]);
-                    rawCallback.__MFRecursionTracker = 0;
+                    if (rawCallback.__MFRecursionTracker > 0) {
+                        rawCallback(obj[prop]);
+                        rawCallback.__MFRecursionTracker = 0;
+                    }
                 }
+            }
+            if (1) {
+                // Monitor how much re-entering actually happens in practise, and whether it causes bugs.
+                
+                let rawCallback = callback;
+                rawCallback.__MFRecursionTracker = 0;
+                callback = newValue => {
+                    if (rawCallback.__MFRecursionTracker > 0) throw new Error(`Recursion in observe() callback!`); // TODO: Remove. This is for testing / gathering data
+                    rawCallback.__MFRecursionTracker += 1;
+                    rawCallback(newValue);
+                    rawCallback.__MFRecursionTracker -=1;
+                };
             }
         }
 
@@ -154,6 +176,15 @@ import { dedent } from "../utils.js"; // TODO: Organize these internal helpers.
         }
     }
 
+    export function observeMultiple (
+        /** @type {[any, string][]} */  objsAndProps, 
+        /** @type {() => void} */       callback,
+        /** @type {boolean} */          triggerImmediately = true
+    ) {
+        for (let x of objsAndProps) observe(x[0], x[1], callback, false);
+        if (triggerImmediately) callback();
+    }
+
     /**
         There is no 'observeMultiple()' or 'combineCallbacks()' primitive. Instead you can just use this pattern:
 
@@ -171,6 +202,19 @@ import { dedent } from "../utils.js"; // TODO: Organize these internal helpers.
 
             TODO: Maybe add this to `Idea - quote-unquote-framework`
 
+            Update: [Nov 2025]
+                Maybe observeMultiple() sugar is good after all. It just doesn't allow combining listen() with observe(), but 
+                    That's probably never need in practice. (listen() could always update one piece of model state, and then 
+                    you can observe that model state together with other states.)
+
+                That would shorten the above code to:
+                {
+                    listen(pickerEl, 'input', () => obj.pickerState = pickerEl.value);
+                    observeMultiple([[obj, 'prop1'], [obj, 'prop2'], [obj, 'pickerState']], {
+                        mflog(`prop1 or prop2 or pickerState changed!`);
+                    });
+                }
+
         Discussion of triggerImmediately arg:
             The user will usually want `triggerImmediately = true` for observe(), but not when using it in combineCallbacks().
             The user will usually want `triggerImmediately = false` for listen(),
@@ -182,7 +226,22 @@ import { dedent } from "../utils.js"; // TODO: Organize these internal helpers.
                 TODO: Reconsider: Is it really good to have a wrapper around addEventListener()? Similar observe()/listen() API is nice, but the wrapper doesn't do anything.
     */
 
+
+
 // MARK: Errors
+
+function error_observe_infinite(obj, prop) {
+    return new Error(dedent(`
+        observe():
+        There seems to be an infinite recursion in the observation of property '${prop}' on object '${obj}'.
+
+        Note: 
+            With a 'normal' infinite recursion, you'd get a stack overflow, but our 
+            re-entering-prevention code (See __MFRecursionTracker) prevents stack overflow.
+            So we throw this error instead, for hopefully better UX than just infinite-looping.
+            (Idk does that freeze up the browser?) (Didn't test) [Nov 2025]
+    `));
+}
 
 function error_observe_notafunction(callback) {
     return new Error(dedent(`
@@ -217,7 +276,7 @@ function error_wrapInCustomElement_footgun1(this_) {
     return new Error(dedent( // TODO: Clean up the terminology. Maybe shorten this.
         `
         
-        No initialization closure found for mf-component instance with id ${this_.dataset.instanceid}.
+        No initialization closure found for mf-custom-element instance with id ${this_.dataset.instanceid}. (dbgname: ${this_.dataset.dbgname})
 
         ---
 
