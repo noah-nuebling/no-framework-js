@@ -1,7 +1,7 @@
 
-import {observe, listen, qs, wrapInCustomElement, getOutlet} from "./NoFramework/NoFramework.js";
-import { mflog, doLater } from "./utils.js";
-import {SimpleList} from "./NoFramework/Components/SimpleList.js"
+import {observe, listen, qs, wrapInCustomElement, getOutlet} from "./Framework/mini-framework.js";
+import { mflog } from "./utils.js";
+import { List } from "./Framework/Components/SimpleList.js"
 
 // Interactive Components
 
@@ -157,11 +157,11 @@ function ToggleSwitch({ label = 'Toggle', initialState = false }) {
 
             const switchEl = qs(this, '.switch');
 
-            this.isActive = initialState;
+            let isActive = initialState;
 
             listen(switchEl, 'click', () => {
-                this.isActive = !this.isActive;
-                switchEl.classList.toggle('active', this.isActive);
+                isActive = !isActive;
+                switchEl.classList.toggle('active', isActive);
             }, false);
         },
         dbgname: ToggleSwitch.name,
@@ -171,71 +171,106 @@ function ToggleSwitch({ label = 'Toggle', initialState = false }) {
 }
 
 // Main render function
-export function test_StuffInteractive() {
+export function renderInteractiveStuff() {
 
     let html = `
         <h1 style="text-align: center; color: #333;">Interactive Components Demo</h1>
         <div style="display: grid; gap: 20px; margin: 30px 30px 400px 30px;">
-            ${Counter({ initialCount: 0, color: '#4a90e2' }).outlet('first-counter')}
-            ${Counter({ initialCount: 100, color: '#9b59b6' })}
-            ${AnimatedCard({
-                title: 'Hover me!',
-                description: 'This card animates on hover',
-                color: '#e74c3c'
-            })}
-            ${AnimatedCard({
-                title: 'Interactive Card',
-                description: 'Built with vanilla JS',
-                color: '#f39c12'
-            })}
-            ${SimpleList(item => 
-                ToggleSwitch({ label: item.label, initialState: item.state}).outlet(`${item.id}`) 
-            ).outlet('toggleSwitches')}
+        ${Counter({ initialCount: 0, color: '#4a90e2' }).outlet('first-counter')}
+        ${Counter({ initialCount: 100, color: '#9b59b6' })}
+        ${AnimatedCard({
+            title: 'Hover me!',
+            description: 'This card animates on hover',
+            color: '#e74c3c'
+        })}
+        ${AnimatedCard({
+            title: 'Interactive Card',
+            description: 'Built with vanilla JS',
+            color: '#f39c12'
+        })}
+        ${ToggleSwitch({ label: 'Dark Mode', initialState: false })}
+        ${ToggleSwitch({ label: 'Notifications', initialState: true })}
+        <hr>
+        <label for="pet-select">Choose a pet:</label>
+        <select name="pets" id="pet-select">
+            ${List((item) => `<option value=${item.id}>${item.label}</option>` ).outlet('petlist')}
+        </select>
+        
+<div>
+    <style> @scope {
+        :scope {
+            display: flex; flex-direction: column;
+            background-image: linear-gradient(0deg, blue, blueviolet);
+            border-radius: 10px;
+        } 
+        .item {
+            color: white; padding: 10px 10px 10px 10px; border: 1px black solid;
+            view-transition-name: var(--vt-name);
+        }
+    } </style>
+    ${List((item) => {
+        return `<div class="item" style="--vt-name: item-${item.id}">${item.label}</div>`
+    }).outlet('petdivs')}
+</div>
+        
         </div>
     `;
     html = wrapInCustomElement(html, {
         init() {
 
+            let counter = /**@type{Counter}*/getOutlet(this, 'first-counter');
+            mflog(`Initial count: ${counter.count}`);
+            observe(counter, 'count', count => {
+                mflog(`Observed count: ${count}`);
+            }, true)
 
-            // Bind the first counter
+            let model = {}
             {
-                let counter = /**@type{Counter}*/getOutlet(this, 'first-counter');
-                mflog(`Initial count: ${counter.count}`);
-                observe(counter, 'count', count => {
-                    mflog(`Observed count: ${count}`);
-                }, true)
-            }
+                model.pets = [
+                    {id: "", label: "-Please choose an option--"},
+                    {id: "dog", label: "Dog"},
+                    {id: "cat", label: "Cat"},
+                    {id: "hamster", label: "Hamster"},
+                    {id: "parrot", label: "Parrot"},
+                    {id: "goldfish", label: "Goldfish"},
+                    {id: "spider", label: "Spider"},
+                ]
 
-            // Bind switches
-            {
-                let model = {}
-                model.switches = [
-                    {id: "notifs", label: 'Notifications', state: true},
-                    {id: "darkmode", label: 'Dark Mode', state: false},
-                ];
-                observe(model, 'switches', () => {
-
-                    getOutlet('toggleSwitches').items = model.switches; /// TODO: Maybe make interface ".reloadItems(items)" or "replaceContent(items)" to make it clear that all DOM nodes will be destroyed – and bindings will have to be re-established.
-
-                    for (let switchModel of model.switches) {
-                        
-                        // TODO: Nesting getOutlet() is a bit ugly. So we're using qs() directly. Maybe just have ppl use qs()? Or make getOutlet() better?
-                        
-                        let switchEl = qs(`.toggleSwitches .${switchModel.id} > *`);
-
-                        observe(switchEl,    'isActive', () => { switchModel.state = switchEl.isActive; });
-                        observe(switchModel, 'state', () => {
-                            mflog(`switch state: ${Number(switchModel.state)} ('${switchModel.label}')`);
-                        });
+                let state = 0;
+                let removedAnimal = {id: 'orangutan', label: "Orangutan"};
+                setInterval(() => {
+                    if (state === 0) {
+                        model.pets.push(removedAnimal);
+                        mflog(`pushed: ${model.pets.map(x => x.id)}`);
                     }
+                    if (state === 2) {
+                        removedAnimal = model.pets.pop();
+                        mflog(`pppped: ${model.pets.map(x => x.id)}`);
+                    }
+                    if (state === 1) {
+                        let popped = model.pets.pop();
+                        mflog(`popped: ${popped.id}`);
+                        model.pets.unshift(popped);
+                    }
+                    state = (state + 1) % 3;
+                }, 1000);
+                setTimeout(() => {
+                    mflog(`model.pets.push`)
 
-                });
+                }, 1000);
             }
+
+            observe(model, 'pets', () => {
+                mflog(`observe pets fired!`);
+                model.pets = List.wrapArrayInObservableProxy(model.pets);
+                getOutlet('petlist').items = model.pets
+                getOutlet('petdivs').items = model.pets;
+            }, true);
 
 
 
         },
-        dbgname: test_StuffInteractive.name
+        dbgname: renderInteractiveStuff.name
     })
     return html;
 }

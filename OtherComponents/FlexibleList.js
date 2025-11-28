@@ -40,7 +40,7 @@ export function FlexibleList(renderItem) {
     html = wrapInCustomElement(html, {
 
         dbgname: "List",
-        /** @this {FlexibleList} */connected() {
+        /** @this {FlexibleList} */init() {
 
             this.items = [];
 

@@ -44,7 +44,7 @@ export const FastList = ({
     `
 
     html = wrapInCustomElement(html, {
-        connected() {
+        init() {
 
             this.items = []; // Set .items to have the FastList() render them.
 

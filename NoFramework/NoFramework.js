@@ -22,6 +22,7 @@ import { dedent, mflog } from "../utils.js"; // TODO: Organize these internal he
         TODO:
             -> Maybe move this into the `Idea - quote-unquote-framework` doc.
         TODO: 'polluting the global name space' is usually not done in JS. (Says Claude) Component libraries would have to rename this to avoid conflicts. Maybe shouldn't do this at all, and just make outlet() a regular function.
+                ... Or just give it a namespace prefix – mf_outlet – like is done in objc.
     */
     String.prototype.outlet = function (id) {
         return `<div class="outlet ${id}" style="display: contents">${this}</div>`
@@ -37,7 +38,7 @@ import { dedent, mflog } from "../utils.js"; // TODO: Organize these internal he
     let inits = {};
     let instanceCounter = 0;
 
-    export function wrapInCustomElement(innerHtml, { connected: init, dbgname }) {
+    export function wrapInCustomElement(innerHtml, { init, dbgname }) {
 
         let id = `${instanceCounter++}`;
 
@@ -90,6 +91,8 @@ import { dedent, mflog } from "../utils.js"; // TODO: Organize these internal he
             if (!obj)                            throw error_observe_nilobj(obj);
             
             //  Catch footgun of trying to observe a computed property, like `HTMLSelectElement.value`
+            //      TODO: This validation could lead to conflicts if a component-library uses something other than `__MFObservationCallbacks_${prop}` 
+            //          – maybe this validation should be looser? Or specific to HTMLSelectElement.value?
             if (!obj[`__MFObservationCallbacks_${prop}`])
             {
                 // Look up the propertyDescriptor of obj.prop in the prototype-chain
@@ -106,15 +109,13 @@ import { dedent, mflog } from "../utils.js"; // TODO: Organize these internal he
 
             }
         }
+        // Defer recursive calls to prevent theoretical stale-state bugs
+        //      Prevents edge-case issue where observation callback for a new value runs before the observation callback for the older value finishes (and then when it finishes, it may reset some state to be outdated.)
+        //      Weird edge case with this solution: If you observe multiple properties with the same callback function, this will prevent recursive re-entering of that function, but not in all cases if you wrap the callback function in a closure like () => cb(). [Nov 2025]
+        //          ... I don't see a general solution. Maybe just pray that this doesn't happen in practice? Maybe turn this into a 'nonReenteringWrapper()` helper function that users can use if they ever have such problems?
+        //      TODO: Is there a solution without weird edge-cases? Is this even worth having in the codebase or can users just handle this problem themselves? Does this bug even ever happen in practice?
+        //      Alternative idea: You could defer all observation callbacks triggered by other observation callbacks. But that would also be unintuitive for the common case I think? Because the user might have to wait for updates with setTimeout();
         {
-
-            // Defer recursive calls to prevent theoretical stale-state bugs
-            //      Prevents edge-case issue where observation callback for a new value runs before the observation callback for the older value finishes (and then when it finishes, it may reset some state to be outdated.)
-            //      Weird edge case with this solution: If you observe multiple properties with the same callback function, this will prevent recursive re-entering of that function, but not in all cases if you wrap the callback function in a closure like () => cb(). [Nov 2025]
-            //          ... I don't see a general solution. Maybe just pray that this doesn't happen in practice? Maybe turn this into a 'nonReenteringWrapper()` helper function that users can use if they ever have such problems?
-            //      TODO: Is there a solution without weird edge-cases? Is this even worth having in the codebase or can users just handle this problem themselves? Does this bug even ever happen in practice?
-            //      Alternative idea: You could defer all observation callbacks triggered by other observation callbacks. But that would also be unintuitive for the common case I think? Because the user might have to wait for updates with setTimeout();
-            
             if (0) {
                 
                 // Defer re-enterings

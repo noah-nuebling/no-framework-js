@@ -21,7 +21,7 @@ export function SimpleList(renderItem) {
     
     html = wrapInCustomElement(html, {
         dbgname: "SimpleList",
-        connected() {
+        init() {
             this.items = [];
             observe(this, "items", () => {
                 let newHTML = '';
