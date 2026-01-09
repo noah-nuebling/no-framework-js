@@ -230,7 +230,7 @@ That's not obviously a good trade.
 
 **The AppKit/UIKit Analogy**
 
-Consider: The NoFramework is a *more* simple way to write the same patterns that powered professional native apps decades:
+Consider: The NoFramework is a (more simple) way to write the same patterns that powered professional native apps decades:
 
 
 | Pattern | AppKit/UIKit | NoFramework |
