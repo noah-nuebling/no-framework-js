@@ -257,7 +257,7 @@ Caveat: Some of the APIs implemented in the NoFramework.js file don't exactly ma
 
 ---
 
-# Notes / Old Readme
+# Notes / Old Readme from when this was called javascript-playground-nov-2025
 
 Writing simple web stuff with 'NoFramework'
 Also see `Idea - quote-unquote-framework` in our public notes repo.
