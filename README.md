@@ -105,7 +105,7 @@ The evil React propaganda machine wants you to believe that state management
 is hard and only React can solve it – but that's not true!
 
 Think of your app in two parts:
-- **Model**: The interesting data your user wants to inspect and edit
+- **Model**: The interesting data your user wants to inspect or edit
 - **DOM**: The user-friendly interface for inspecting and editing that data
 
 'State management' is mostly just keeping these two in sync:
