@@ -213,11 +213,11 @@ free you to write things you could've never imagined before!
 
 A common objection: "Sure, vanilla JS works for simple stuff, but for anything complex you need React."
 
-Consider: People built Photoshop, Microsoft Office, and entire operating systems with imperative UI code (UIKit, AppKit, Win32). The idea that a web app is "too complex" to write without "Reactivity" doesn't hold up.
+Consider: People built Photoshop, Microsoft Office, and entire operating systems with imperative UI code (UIKit, AppKit, Win32). The idea that a web app is "too complex" to write without "reactivity" doesn't hold up.
 
 Yes, you *can* mess up state synchronization with manual bindings, but even if that does happen the bug is usually immediately visible in the UI and easy to track down.
 
-React's solution trades this problem for arguably more complex ones - now you have to learn how `useEffect` and `useMemo`, and everything is veiled in a layer of implicit behavior and magic, that you'll have to understand when things go wrong.
+React's solution trades this problem for arguably more complex ones - now  everything is veiled in a layer of implicit behavior and magic, that you'll have to understand when things update less or more frequently than you expected. (`useMemo`, `useEffect`, ...)
 
 Does it really make it easier to build great software?
 
@@ -225,7 +225,7 @@ Does it really make it easier to build great software?
 
 **The AppKit/UIKit Analogy**
 
-Consider: The NoFramework is a (more simple) way to write the same patterns that powered professional native apps decades:
+Consider: The NoFramework is a (more simple) way to write the same patterns that professional native apps used for decades:
 
 
 | Pattern | AppKit/UIKit | NoFramework |
@@ -233,7 +233,7 @@ Consider: The NoFramework is a (more simple) way to write the same patterns that
 | Declaring view hierarchies | Interface Builder (XIB/Storyboard) | HTML/CSS in template strings |
 | Loading view hierarchies | `NSViewController` | `customElement()` |
 | Post-load initialization | `viewDidLoad`, `awakeFromNib`, etc. | `init()` |
-| References into views | `@IBOutlet` | `qs()` (querySelector) |
+| References into view hierarchies | `@IBOutlet` | `qs()` (querySelector) |
 | Reacting to user input | Target-Action | `listen()` |
 | Syncing state | KVO, Cocoa Bindings, imperative updates | `observe()` |
 
