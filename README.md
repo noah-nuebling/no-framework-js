@@ -189,12 +189,12 @@ listen(() => uiModel.isOpen = !uiModel.isOpen, [qs('.toggle-button'), 'click']);
 // Bind DOM <- Model
 observe(() => qs('.dropdown').classList.toggle('open', uiModel.isOpen), [uiModel, 'isOpen']);
 
-// -> After a reload, the `.dropdown` will still be open!
+// -> After a reload, the .dropdown will still be open!
 ```
 
 Then use any live-reload server (Python's `livereload`, `browser-sync`, VS Code Live Server). When files change, the page reloads, but state in `persistentModel` survives in `window.localStorage`.
 
-If you store transient state like the scroll position in a `persistentModel`, you can continue exactly where you left off before the reload.
+If you store transient state like the scroll position or dropdown state in a `persistentModel`, you can continue exactly where you left off before the reload.
 
 (CAVEAT: I haven't implemented / tested `persistentModel()`, yet [Jan 2026])
 
