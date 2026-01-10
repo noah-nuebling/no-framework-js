@@ -117,7 +117,7 @@ Think of your app in two parts:
 You can solve this with three vanilla JS primitives:
 - `document.querySelector()` – find DOM elements
 - `addEventListener()` – run code when the user interacts
-- `Object.defineProperty()` – run code when your model changes
+- `Object.defineProperty()` (or `Proxy`) – run code when your model changes
 
 NoFramework just wraps these as `qs()`, `listen()`, and `observe()`:
 
