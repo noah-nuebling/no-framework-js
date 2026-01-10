@@ -214,22 +214,13 @@ A common objection: "Sure, vanilla JS works for simple stuff, but for anything c
 
 Consider: People built Photoshop, Microsoft Office, and entire operating systems with imperative UI code (UIKit, AppKit, Win32). The idea that a web app is "too complex" to write without "Reactivity" doesn't hold up.
 
-Yes, you *can* mess up state synchronization with manual bindings. But:
-- Getting it right isn't rocket science. (two-way bindings)
-- Bug's are immediately visible in the UI.
-- It's easy to find and fix in your code.
+Yes, you *can* mess up state synchronization with manual bindings, but even if that does happen the bug is usually immediately visible in the UI and easy to track down.
 
+React's solution trades this problem for arguably more complex ones - now you have to learn how `useEffect` and `useMemo`, and everything is veiled in a layer of implicit behavior and magic, that you'll have to understand when things go wrong.
 
-React's solution trades this simple problem for complex ones:
-- Virtual DOM diffing you can't easily inspect
-- `useEffect` dependency arrays that are notoriously error-prone
-- `useMemo`/`useCallback` to prevent unnecessary renders (a problem React created)
-- Stale closure bugs that are genuinely confusing
-- Re-render cascades in complex apps
+Does it really make it easier to build great software?
 
-That's not obviously a good trade.
-
-**A reality check:** If manual state management is so error-prone, we'd expect apps built without "reactivity" to be riddled with stale UI bugs. But think about the native apps you use daily—are they? Final Cut Pro, Figma's desktop app, VS Code, your browser itself. These don't use React-style virtual DOM diffing, yet they don't have noticeably worse UI consistency than React apps. If anything, the opposite is often true.
+**Reality check:** If manual state management is so error-prone, we'd expect apps built without "reactivity" to be riddled with stale UI bugs. But think about the native apps you use daily—are they? Final Cut Pro, Figma's desktop app, VS Code, your browser itself. These don't use React-style virtual DOM diffing, yet they don't have noticeably worse UI consistency than React apps. If anything, the opposite is often true.
 
 **The AppKit/UIKit Analogy**
 
@@ -255,7 +246,7 @@ Caveat: This Demo tries to make a strong case against React and for using Vanill
 
 ---
 
-Caveat: Some of the APIs implemented in the NoFramework.js file don't exactly match the APIs described in the 'Demo' above – the code in this repo is a sort of messy playground / proof of concept [Jan 2026]
+Caveat: Some of the APIs implemented in the NoFramework.js file don't exactly match the APIs described in the 'Demo' above – this repo is a sort of playground / proof of concept at this point [Jan 2026]
 
 ---
 
